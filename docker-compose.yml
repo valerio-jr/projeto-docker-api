@@ -1,0 +1,56 @@
+version: '3.9'
+
+services:
+  # Banco de dados PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: projeto_postgres_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-prisma}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-prisma123}
+      POSTGRES_DB: ${DB_NAME:-projeto_db}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      # Volume nomeado para persistência de dados
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - projeto-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prisma"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Node.js
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: projeto_api
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${DB_USER:-prisma}:${DB_PASSWORD:-prisma123}@postgres:5432/${DB_NAME:-projeto_db}
+    ports:
+      - "${API_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Volume para desenvolvimento (hot reload)
+      - .:/app
+      - /app/node_modules
+      - /app/dist
+    networks:
+      - projeto-network
+    command: npm run dev
+
+# Volumes
+volumes:
+  postgres_data:
+    driver: local
+
+# Redes
+networks:
+  projeto-network:
+    driver: bridge
